@@ -1,46 +1,37 @@
-# Workflow name (shown in GitHub Actions UI)
 name: vprofile actions
 
-# Trigger: manual run button from GitHub Actions
 on:
   workflow_dispatch:
+env:
+  ECR_REPOSITORY: vprofileapp
+  AWS_REGION: us-east-1
+  EKS_CLUSTER: vprofile-eks
 
-# All jobs must be inside "jobs"
 jobs:
-
-  # ------------------ JOB 1 : TESTING ------------------
   Testing:
-
-    # GitHub runner OS
     runs-on: ubuntu-latest
 
     steps:
-
-      # Step 1: Pull your repo code into runner
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2: Run unit tests using Maven
       - name: Maven test
         run: mvn test
 
-      # Step 3: Run checkstyle (code quality rules)
-      - name: CheckStyle
+      - name: checkStyle
         run: mvn checkstyle:checkstyle
 
-      # Step 4: Setup Java 11 (required for Maven/Sonar etc.)
+      # Setup Java 11 to be default (Sonar-scanner requirement as of 5.x)
       - name: Set up JDK 11
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '11'
 
-      # ------------------ OPTIONAL : SONARQUBE ------------------
-      # Uncomment if you want Sonar scan
-
-      # - name: Setup Sonar Scanner
+      # - name: Setup SonarQube
       #   uses: warchant/setup-sonar-scanner@v7
 
+      # # Run sonar-scanner
       # - name: SonarQube Scan
       #   run: |
       #     sonar-scanner \
@@ -52,46 +43,34 @@ jobs:
       #       -Dsonar.junit.reportsPath=target/surefire-reports/ \
       #       -Dsonar.jacoco.reportsPath=target/jacoco.exec \
       #       -Dsonar.java.checkstyle.reportPaths=target/checkstyle-result.xml \
-      #       -Dsonar.java.binaries=target/test-classes/
+      #       -Dsonar.java.binaries=target/test-classes/com/visualpathit/account
 
-      # - name: Sonar Quality Gate Check
+      # # Check the quality gate status
+      # - name: SonarQube Quality Gate Check
+      #   id: sonarqube-quality-gate-check
       #   uses: sonarsource/sonarqube-quality-gate-action@master
       #   timeout-minutes: 5
       #   env:
-      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      #     SONAR_HOST_URL: ${{ secrets.SONAR_URL }}
+      # SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      # SONAR_HOST_URL: ${{ secrets.SONAR_URL }
 
-
-
-  # ------------------ JOB 2 : BUILD & PUSH DOCKER IMAGE ------------------
   build_and_publish:
-
-    # This job runs only if "Testing" job succeeds
     needs: Testing
-
     runs-on: ubuntu-latest
 
-    # Environment variables used in this job
-    env:
-      ECR_REPOSITORY: your-ecr-repo-name   # change this
-      AWS_REGION: ap-south-1               # change if needed
-
     steps:
-
-      # Step 1: Checkout repo again (each job is fresh runner)
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2: Build Docker image and push to AWS ECR
-      - name: Upload image to ECR
+      - name: upload image to ECR
         uses: appleboy/docker-ecr-action@master
         with:
-          access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}          # AWS access key
-          secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}      # AWS secret key
-          registry: ${{ secrets.REGISTRY }}                     # AWS account ECR registry
-          repo: ${{ env.ECR_REPOSITORY }}                       # ECR repo name
-          region: ${{ env.AWS_REGION }}                         # AWS region
-          tag: latest,${{ github.run_number }}                  # Image tags
+          access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          registry: ${{ secrets.REGISTRY }}
+          repo: ${{ env.ECR_REPOSITORY }}
+          region: ${{ env.AWS_REGION }}
+          tags: latest,${{ github.run_number }}
           daemon_off: false
-          dockerfile: ./Dockerfile                              # Dockerfile path
-          context: ./                                           # Build context
+          dockerfile: ./Dockerfile
+          context: ./
